@@ -3,7 +3,7 @@ Create test data and django unit tests to query user data based on location
 
 Dependencies - Python2.7, Django 1.8.0, GeoPy, sqlite, spatialite
 
-Download - Download the tar ball and extract to your location.
+Download - Download or clone the source and extract to your location if you have downloaded zip file.
 
 Pre-requisites - Setup environment variable "LD_LIBRARY_PATH" based on your Operating System
 You can use export LD_LIBRARY_PATH=nextdoor.settings
