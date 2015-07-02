@@ -37,6 +37,7 @@ INSTALLED_APPS = (
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django.contrib.gis',
     'queryuser',
 )
 
@@ -78,7 +79,7 @@ WSGI_APPLICATION = 'nextdoor.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
+        'ENGINE': 'django.contrib.gis.db.backends.spatialite',
         'NAME': os.path.join(BASE_DIR, 'nextdoor.sqlite3'),
 	'TEST': {
 		"NAME": os.path.join(BASE_DIR, 'test_nextdoor.sqlite3'),

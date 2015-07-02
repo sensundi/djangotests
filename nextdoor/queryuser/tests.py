@@ -1,10 +1,13 @@
- 
-from django.test.utils import setup_test_environment
-from django.test import TestCase
-
 import contextlib
+import math
 import os
 import random
+
+from django.test.utils import setup_test_environment
+from django.test import TestCase
+from django.forms.models import model_to_dict
+from django.contrib.gis.measure import D
+from django.contrib.gis.geos import Point, GEOSGeometry
 
 from queryuser.models import User, UserLocation
 from factories import UserFactory, UserLocationFactory
@@ -13,28 +16,62 @@ from factories import UserFactory, UserLocationFactory
 setup_test_environment()
 
 # TestCase class for model "User"
-class UserTestcase(TestCase):
-
-    def setUp(self):
+class UserTestCase(TestCase):
+    
+    @classmethod
+    def setUpClass(self):
         """
         This method will be initialized when a derived class of 
         TestCase is executed and used for specifying the pre-requisites
         """
+        
         self.create_user_base()
         pass
 
+    @classmethod
     def create_user_base(self):
         """
         Create User base if does not exist already
         """
         if not User.objects.all():
             users = []
-            # Iterate 20 times to create batch profiles of about 10000 users
-            for iteration in range(20):
+            fnames, lnames = self.create_names_list()
+            
+            # Iterate 50 times to create batch profiles of about 10000 users
+            for iteration in range(50):
+                fname = (random.choice(fnames)).lower()
+                lname = (random.choice(lnames)).lower()
+                sname = fname[0] + lname
+                
+                # Create a batch of 200 users passing the short_name
+                users.extend(UserFactory.create_batch(200, 
+                            first_name=fname, 
+                            last_name=lname,
+                            short_name=sname))
+                
+    @classmethod
+    def create_names_list(self):
+        """
+        Construct a list of first names and last names present in the CSV files        
+        """
+        fnames = []
+        # Get  first names file path
+        fname_path = os.path.join(os.path.dirname(__file__), "first_names.csv")
 
-                # Create a batch of 500 users passing the short_name
-                users.extend(UserFactory.create_batch(500))
-				
+        lnames = []
+        # Get Last names file path
+        lname_path = os.path.join(os.path.dirname(__file__), "last_names.csv")
+
+        # Its good to use contextlib to close file handle as well as database 
+        # sessions
+        with contextlib.closing(open(fname_path,"r")) as ffile:
+            fnames = ffile.read().split("\r")
+        
+        with contextlib.closing(open(lname_path,"r")) as lfile:
+            lnames = lfile.read().split("\r")
+        
+        return fnames,lnames
+                
 				
     def test_add_user_if_no_data(self):
         """ 
@@ -52,8 +89,10 @@ class UserTestcase(TestCase):
         defined_user = UserFactory.create(first_name="sen", last_name = "sundi", short_name="ssundi")
         defined_user.save()
         self.assertTrue(User.objects.get(short_name="ssundi") == defined_user)
-
-    def tearDown(self):
+        
+    
+    @classmethod
+    def tearDownClass(self):
         """
         This method is called as destructor when TestCase execution
         is complete and serves cleanup activities
@@ -63,10 +102,133 @@ class UserTestcase(TestCase):
 	
 # TestCase class for model "UserLocation"
 class UserLocationTestCase(TestCase):
-	def setUp(self):
-		pass
 
-	def tearDown(self):
-		pass
+    @classmethod
+    def setUpClass(self):
+        """
+        Create user locations if does not exist already
+        """
+        if not UserLocation.objects.all():            
+            fnames, lnames = self.create_names_list()
+            
+            # Iterate 50 times to create batch profiles of about 10000 users
+            for iteration in range(50):
+                fname = (random.choice(fnames)).lower()
+                lname = (random.choice(lnames)).lower()
+                sname = fname[0] + lname
+                users = UserFactory.create_batch(200, 
+                                                first_name=fname,
+                                                last_name=lname,
+                                                short_name=sname)
+                for user in users:
+                    # Create a batch of 200 userlocations corresponding 
+                    # to each user 
+                    new_lat,new_lng = self.calc_rand_loctn( 40.7033127,
+                                                            -73.979681, 
+                                                            5)
+                    UserLocationFactory.create( lat=new_lat, 
+                                                lng=new_lng, 
+                                                user=user)
 
-	pass
+    @classmethod
+    def calc_rand_loctn(self, ny_lat, ny_lng, half_radius):
+        """
+        Using the given radius (in kms), calculate the boundary limits
+        to arrive at maximum and minimum co-ordinates.
+        """
+        # Generate random points between interval [0,1]
+        random_lat = random.random()
+        random_lng = random.random()
+    
+        # Convert the radius in Kms to meters and then divide 
+        # to arrive at degrees
+        radius_in_degrees = half_radius * 1000.00 / 111300.00
+        
+        # Calculate the delta for new co-ordinates 
+        proc_lat = radius_in_degrees * math.sqrt(random_lat);
+        proc_lng = 2 * math.pi * random_lng;
+
+        delta_lat = proc_lat * math.cos(proc_lng)
+        delta_lng = proc_lat * math.sin(proc_lng)
+
+        lat_to_add = delta_lat / math.cos(ny_lng)
+        
+        # Add the calculated delta and latitude
+        new_lat = lat_to_add + ny_lat
+        new_lng = delta_lng + ny_lng
+
+        return new_lat, new_lng
+
+    @classmethod
+    def create_names_list(self):
+        """
+        Construct a list of first names and last names present in the CSV files        
+        """
+        fnames = []
+        # Get  first names file path
+        fname_path = os.path.join(os.path.dirname(__file__), "first_names.csv")
+
+        lnames = []
+        # Get Last names file path
+        lname_path = os.path.join(os.path.dirname(__file__), "last_names.csv")
+
+        # Its good to use contextlib to close file handle as well as database 
+        # sessions
+        with contextlib.closing(open(fname_path,"r")) as ffile:
+            fnames = ffile.read().split("\r")
+        
+        with contextlib.closing(open(lname_path,"r")) as lfile:
+            lnames = lfile.read().split("\r")
+        
+        return fnames,lnames
+
+    @classmethod
+    def get_coordinates_range(self, lat,lng,half_radius):
+        return self.calc_rand_loctn(lat,lng,half_radius)
+
+    def test_query_users_within_140meters(self):
+        """
+        Check for list of users in 140 meters
+        """
+        # using id since we're using test data and are unaware of the 
+        # names being created during runtime
+        id=7000
+        userobj = UserLocation.objects.get(user_id=id)
+        users = UserLocation.objects.nearby(userobj.lat, userobj.lng, 0.140)
+
+        print "Users within 140 meters of user %s - %d"%(userobj.user.short_name,
+                                                         len(users))
+
+        self.assertFalse(len(users) >= 140)
+
+        nearby_users = UserLocation.objects.nearby( userobj.lat,\
+                                                    userobj.lng,\
+                                                    5)[:140]
+        for user in nearby_users:
+            print "ShortName: %15s, longitude:%14s, latitude:%14s"%(user.user.short_name,
+                                                    user.lng, 
+                                                    user.lat)
+        self.assertTrue(len(nearby_users) >=140)
+            
+    def test_query_users_within_140meters_raises_exception(self):
+        """
+        Check for list of users in 140 meters
+        """
+        # using id since we're using test data and are unaware of the 
+        # names being created during runtime
+        id=309
+        userobj = UserLocation.objects.get(user_id=id)
+        users = UserLocation.objects.nearby(userobj.lat, userobj.lng, 0.140)
+
+        print "\nUsers within 140 meters of user %s - %d"%(userobj.user.short_name,
+                                                        len(users))
+
+        self.assertRaises(AssertionError, self.assertTrue, len(users) >= 140) 
+
+    @classmethod
+    def tearDownClass(self):
+        """
+        This method is called as destructor when TestCase execution
+        is complete and serves cleanup activities
+        """
+        pass
